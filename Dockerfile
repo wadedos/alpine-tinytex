@@ -80,8 +80,6 @@ RUN dvisvgm --font-format=ttf ./test.dvi
 # verify ttf font svg was generated
 RUN test -f test.svg
 
-RUN cat test.svg
-
 # clean up tests
 RUN rm -R /tmp/*
 
