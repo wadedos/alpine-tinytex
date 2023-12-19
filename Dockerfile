@@ -1,4 +1,4 @@
-FROM alpine:3.9
+FROM alpine as build
 
 # tinytex dependencies
 RUN apk --no-cache add \
@@ -11,13 +11,10 @@ RUN apk --no-cache add \
   lua \
   gcc
 
-# add user
+# add user install as appuser and setup workdir
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 
-# install as appuser
 USER appuser
-
-# setup workdir
 WORKDIR /home/appuser
 
 # setup path
@@ -29,11 +26,8 @@ RUN wget -qO- "https://yihui.name/gh/tinytex/tools/install-unx.sh" | sh
 # add tlmgr to path
 RUN /home/appuser/.TinyTeX/bin/*/tlmgr path add
 
-# verify latex version
-RUN latex --version
-
-# verify tlmgr version
-RUN tlmgr --version
+# verify latex and tlmgr version
+RUN latex --version && tlmgr --version
 
 # install texlive packages
 RUN tlmgr install \
@@ -44,44 +38,35 @@ RUN tlmgr install \
 # verify 
 RUN dvisvgm --version
 
-# setup test
+FROM alpine as production
+
+RUN apk --no-cache add perl
+
+# add user install as appuser and setup workdir
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+USER appuser
+WORKDIR /home/appuser
+
+COPY --from=build /home/appuser/.TinyTeX /home/appuser/.TinyTeX
+
+ENV PATH=/home/appuser/.TinyTeX/bin/x86_64-linuxmusl:$PATH
+
+# setup test workdir
 RUN mkdir /tmp/test
-
-# test workdir
 WORKDIR /tmp/test
-
 # copy test latex standalone equation
 COPY ./test.tex .
-
-# temp assign root to clean up tlmgr only dependencies
-USER root
-
-# remove dependencies
-RUN apk del wget xz tar
-
-# reset user
-USER appuser
 
 # run latex - ignore latex errors
 RUN latex -interaction=nonstopmode  ./test.tex || true
 
 # run dvisvgm with no-fonts
-RUN dvisvgm --no-fonts ./test.dvi
-
 # verify no-font svg was generated
-RUN test -f test.svg
-
-# remove no-font svg
-RUN rm test.svg
-
 # run dvisvgm with ttf font
-RUN dvisvgm --font-format=ttf ./test.dvi
-
 # verify ttf font svg was generated
-RUN test -f test.svg
-
-# clean up tests
-RUN rm -R /tmp/*
+RUN dvisvgm --no-fonts ./test.dvi && test -f test.svg \
+  && rm test.svg && dvisvgm --font-format=ttf ./test.dvi \
+  && test -f test.svg && rm -R /tmp/*
 
 # reset workdir
 WORKDIR /home/appuser
