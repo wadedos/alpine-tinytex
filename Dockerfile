@@ -1,4 +1,4 @@
-FROM alpine:3.9
+FROM alpine as build
 
 # tinytex dependencies
 RUN apk --no-cache add \
@@ -11,13 +11,10 @@ RUN apk --no-cache add \
   lua \
   gcc
 
-# add user
+# add user install as appuser and setup workdir
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 
-# install as appuser
 USER appuser
-
-# setup workdir
 WORKDIR /home/appuser
 
 # setup path
@@ -29,11 +26,8 @@ RUN wget -qO- "https://yihui.name/gh/tinytex/tools/install-unx.sh" | sh
 # add tlmgr to path
 RUN /home/appuser/.TinyTeX/bin/*/tlmgr path add
 
-# verify latex version
-RUN latex --version
-
-# verify tlmgr version
-RUN tlmgr --version
+# verify latex and tlmgr version
+RUN latex --version && tlmgr --version
 
 # install texlive packages
 RUN tlmgr install \
@@ -55,8 +49,6 @@ COPY ./test.tex .
 
 # temp assign root to clean up tlmgr only dependencies
 USER root
-
-# remove dependencies
 RUN apk del wget xz tar
 
 # reset user
